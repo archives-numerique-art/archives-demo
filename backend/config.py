@@ -9,7 +9,7 @@ DATA = os.environ.get("IMF_DONNEES") or os.path.join(BACKEND, "donnees")
 FILES = os.path.join(DATA, "fichiers")                 # documents scannés
 DB = os.environ.get("IMF_DB") or (
     os.path.join(DATA, "archives.db") if os.environ.get("IMF_DONNEES")
-    else os.path.join(BACKEND, "imf_archive_pro")
+    else os.path.join(BACKEND, "db", "imf_archive_pro")
 )                                                       # base SQLite principale
 KEYF = os.path.join(DATA, "cle.txt")                   # clé secrète des sessions
 JOURNAUX = os.environ.get("IMF_JOURNAUX") or os.path.join(BACKEND, "journaux")      # journal en CSV (Excel), un fichier par mois

@@ -11,7 +11,7 @@ if not errorlevel 1 (set "PY=py") else (
   )
   set "PY=python"
 )
-if not defined IMF_DB set "IMF_DB=%~dp0backend\imf_archive_pro"
+if not defined IMF_DB set "IMF_DB=%~dp0backend\db\imf_archive_pro"
 if not exist "%IMF_DB%" (
   echo Base SQLite introuvable : "%IMF_DB%"
   exit /b 1

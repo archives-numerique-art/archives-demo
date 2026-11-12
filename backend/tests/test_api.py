@@ -46,7 +46,7 @@ env_default = dict(os.environ)
 env_default.pop("IMF_DONNEES", None); env_default.pop("IMF_DB", None)
 cfg = subprocess.run([sys.executable, "-c", "import config; print(config.DB)"], cwd=RACINE, env=env_default,
                      text=True, capture_output=True, check=True)
-verif(cfg.stdout.strip() == os.path.join(RACINE, "imf_archive_pro"), "base SQLite principale : chemin par défaut")
+verif(cfg.stdout.strip() == os.path.join(RACINE, "db", "imf_archive_pro"), "base SQLite principale : chemin par défaut")
 verif(C.DB == os.path.join(tmp, "donnees", "archives.db"), "IMF_DONNEES : chemin temporaire isolé pour les tests")
 
 import base
@@ -87,6 +87,13 @@ verif(Client("demo.agent", "faux").r.status_code == 401, "mauvais mot de passe r
 
 # ---- 3. sécurité : CORS / CSRF / origine / session
 r = A.options("/api/documents", headers=dict(H, **{"Access-Control-Request-Method": "GET"})); verif(r.status_code == 204 and r.headers.get("Access-Control-Allow-Origin") == H["Origin"] and r.headers.get("Access-Control-Allow-Credentials") == "true", "CORS : le frontend autorisé reçoit les en-têtes")
+r = A.options("/api/etat", base_url="http://192.168.1.20:%d" % C.PORT_BACKEND,
+              headers={"Origin": "http://192.168.1.20:%d" % C.PORT_FRONTEND, "Access-Control-Request-Method": "GET"})
+verif(r.status_code == 204 and r.headers.get("Access-Control-Allow-Origin") == "http://192.168.1.20:%d" % C.PORT_FRONTEND,
+      "CORS : frontend du réseau local autorisé sur la même adresse")
+r = A.get("/api/etat", base_url="http://192.168.1.20:%d" % C.PORT_BACKEND,
+          headers={"Origin": "http://192.168.1.20:5002"})
+verif("Access-Control-Allow-Origin" not in r.headers, "CORS : port frontend réseau incorrect refusé")
 r = A.get("/api/etat", headers={"Origin": "http://evil.example:5000"}); verif("Access-Control-Allow-Origin" not in r.headers, "CORS : une autre origine n'est pas autorisée")
 r = ag.c.post("/api/documents/supprimer", json={"ids": [1]}, headers=H); verif(r.status_code == 400, "CSRF : requête sans jeton refusée")
 r = ag.c.post("/api/demandes", json={}, headers=dict(ag.h(), Origin="http://evil.example:5000")); verif(r.status_code == 403, "origine étrangère refusée sur une écriture")

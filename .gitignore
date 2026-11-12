@@ -1,6 +1,6 @@
 # Base SQLite et données réelles (ne jamais publier)
-backend/imf_archive_pro
-backend/imf_archive_pro-*
+backend/db/imf_archive_pro
+backend/db/imf_archive_pro-*
 backend/donnees/
 backend/journaux/
 backend/exports/

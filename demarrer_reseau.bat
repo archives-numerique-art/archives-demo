@@ -11,7 +11,7 @@ if not errorlevel 1 (set "PY=py") else (
   )
   set "PY=python"
 )
-if not defined IMF_DB set "IMF_DB=%~dp0backend\imf_archive_pro"
+if not defined IMF_DB set "IMF_DB=%~dp0backend\db\imf_archive_pro"
 if not exist "%IMF_DB%" (
   echo Base SQLite introuvable : "%IMF_DB%"
   exit /b 1
@@ -19,6 +19,18 @@ if not exist "%IMF_DB%" (
 if not defined IMF_PORT_BACKEND set "IMF_PORT_BACKEND=5001"
 if not defined IMF_PORT_FRONTEND set "IMF_PORT_FRONTEND=5000"
 set IMF_HOTE=0.0.0.0
+%PY% -c "import socket; s=socket.socket(); s.bind(('0.0.0.0', %IMF_PORT_BACKEND%)); s.close()" >nul 2>nul
+if errorlevel 1 (
+  echo Le port backend %IMF_PORT_BACKEND% est deja utilise.
+  echo Fermez les fenetres BACKEND et FRONTEND deja ouvertes, puis relancez ce fichier.
+  exit /b 1
+)
+%PY% -c "import socket; s=socket.socket(); s.bind(('0.0.0.0', %IMF_PORT_FRONTEND%)); s.close()" >nul 2>nul
+if errorlevel 1 (
+  echo Le port frontend %IMF_PORT_FRONTEND% est deja utilise.
+  echo Fermez les fenetres BACKEND et FRONTEND deja ouvertes, puis relancez ce fichier.
+  exit /b 1
+)
 %PY% -c "import flask" >nul 2>nul
 if errorlevel 1 (
   echo Installation des dependances du backend...
@@ -42,8 +54,22 @@ timeout /t 1 /nobreak >nul
 goto attendre_backend
 :backend_pret
 start "IMF Archive - FRONTEND" /D "%~dp0frontend" cmd /k "%PY% serveur.py"
+set "ESSAIS=0"
+:attendre_frontend
+%PY% -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:%IMF_PORT_FRONTEND%/', timeout=1).read()" >nul 2>nul
+if not errorlevel 1 goto frontend_pret
+set /a ESSAIS+=1
+if %ESSAIS% GEQ 20 (
+  echo Le frontend ne repond pas. Consultez sa fenetre pour voir l'erreur.
+  exit /b 1
+)
+timeout /t 1 /nobreak >nul
+goto attendre_frontend
+:frontend_pret
 echo.
-echo Adresse a donner aux collegues (meme reseau) : http://VOTRE_ADRESSE_IPV4:%IMF_PORT_FRONTEND%/
+echo Adresse a donner aux collegues (meme reseau) : http://ADRESSE_IPV4:%IMF_PORT_FRONTEND%/
+echo Autorisez Python ou les ports TCP %IMF_PORT_FRONTEND% et %IMF_PORT_BACKEND% sur le profil Prive du pare-feu Windows.
+echo N'ouvrez pas ces ports sur un reseau public ou vers Internet.
 ipconfig | findstr /i "IPv4"
 timeout /t 2 /nobreak >nul
 start "" "http://localhost:%IMF_PORT_FRONTEND%/"

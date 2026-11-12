@@ -11,15 +11,21 @@ Référence unifiée des compétences du projet IMF Archive. Le projet gère les
 
 - `backend/` : API JSON Flask, port **5001**. Seul composant autorisé à lire et modifier la base de données ; il porte les règles de sécurité et de calcul.
 - `frontend/` : pages web statiques HTML, CSS et JavaScript natifs, port **5000**. Appelle le backend avec `fetch`, cookies de session et en-tête `X-CSRF-Token`.
-- La base principale CRUD est SQLite, dans un seul fichier. **Emplacement exact :** `C:\Users\HP\Documents\imf_archive\backend\imf_archive_pro` (fichier sans extension). Le backend lit `config.DB`; routes, scripts et services utilisent cette même configuration.
-- Dossier du projet : `C:\Users\HP\Documents\imf_archive`.
+- La base principale CRUD est SQLite, dans un seul fichier. **Emplacement exact :** `C:\Users\HP\Documents\GitHub\imf_archives\backend\db\imf_archive_pro` (fichier sans extension). Le backend lit `config.DB`; routes, scripts et services utilisent cette même configuration.
+- Dossier du projet : `C:\Users\HP\Documents\GitHub\imf_archives`.
+
+### Chemins de référence
+
+- Cette copie du projet se trouve dans `C:\Users\HP\Documents\GitHub\imf_archives`. Utiliser ce chemin comme racine pour les commandes, les liens et les chemins relatifs.
+- Résoudre les chemins depuis cette racine et ne pas reprendre d'anciens chemins du projet.
+- La base active est `backend\db\imf_archive_pro` dans la racine actuelle. Ne pas la déplacer, remplacer ou modifier pendant une tâche de code sans demande explicite et sauvegarde vérifiée.
 
 ### Fichiers backend importants
 
 | Fichier | Rôle |
 |---|---|
 | `config.py` | chemins, ports, listes (rôles, types, niveaux), version |
-| `imf_archive_pro` | base SQLite principale ; elle porte directement la structure des tables |
+| `db\imf_archive_pro` | base SQLite principale ; elle porte directement la structure des tables |
 | `base.py` | connexion SQLite et migrations compatibles avec les anciennes bases |
 | `regles.py` | classe `Droits` : qui voit, ouvre, partage et décide |
 | `api.py` | routes `/api/...` |
@@ -33,7 +39,7 @@ Le navigateur n'affiche que ce que le backend renvoie. Les compteurs, l'arbre de
 
 ### Emplacement et précautions
 
-- Le fichier SQLite par défaut et la base principale des opérations CRUD est `C:\Users\HP\Documents\imf_archive\backend\imf_archive_pro`. `IMF_DB` peut choisir explicitement un autre fichier. `IMF_DONNEES`, lorsqu'il est défini sans `IMF_DB`, conserve le comportement historique et place la base dans `<IMF_DONNEES>\archives.db`.
+- Le fichier SQLite par défaut et la base principale des opérations CRUD est `C:\Users\HP\Documents\GitHub\imf_archives\backend\db\imf_archive_pro`. `IMF_DB` peut choisir explicitement un autre fichier. `IMF_DONNEES`, lorsqu'il est défini sans `IMF_DB`, conserve le comportement historique et place la base dans `<IMF_DONNEES>\archives.db`.
 - La base réelle, ses sauvegardes, fichiers scannés, journaux et exports sont exclus de GitHub : ne jamais publier de données clients ou de secrets. Une copie autorisée de la base doit être installée localement avant de démarrer une copie fraîche du code.
 - Documents scannés : répertoire de données du backend, historiquement `backend/donnees/fichiers/`. Vérifier la configuration courante avant toute opération sur les fichiers.
 - Ne jamais partager la clé de session ni les données clients.
@@ -125,8 +131,9 @@ Un compte avec un rôle ou un drapeau spécial ne peut pas être modifié par l'
 1. Installer Python depuis python.org.
 2. Lancer `demarrer_local.bat` pour utiliser l'application sur cet ordinateur, puis ouvrir `http://localhost:5000`.
 3. Le frontend écoute sur le port **5000** et l'API sur **5001**. Ne pas fermer les fenêtres BACKEND et FRONTEND pendant l'utilisation.
-4. Pour le réseau local, lancer `demarrer_reseau.bat` et utiliser `http://ADRESSE_IPV4:5000`. Les deux ports doivent être accessibles ; `localhost` désigne toujours l'ordinateur utilisé.
-5. Si Windows demande confirmation pour un fichier `.bat` du projet, vérifier sa provenance avant de l'exécuter.
+4. Pour le réseau local, fermer d'abord les deux fenêtres de l'application, puis lancer `demarrer_reseau.bat`. Le script lie les serveurs au réseau, vérifie que les ports sont libres et attend que le frontend réponde. Utiliser l'adresse IPv4 affichée, sous la forme `http://ADRESSE_IPV4:5000` ; `localhost` désigne toujours l'ordinateur utilisé.
+5. Les appareils doivent être sur le même réseau privé. Autoriser Python ou les ports TCP 5000 et 5001 uniquement sur le profil **Privé** du pare-feu Windows. Ne pas exposer ces ports sur un réseau public ou sur Internet.
+6. Si Windows demande confirmation pour un fichier `.bat` du projet, vérifier sa provenance avant de l'exécuter.
 
 Erreurs fréquentes :
 - `ERR_CONNECTION_TIMED_OUT` : pare-feu ou réseau bloque la connexion.
@@ -146,7 +153,7 @@ Pour héberger sur le serveur de l'entreprise : demander à l'informatique un pr
 2. Faire une sauvegarde vérifiée.
 3. Mettre à jour le code sans écraser les données, journaux, exports ou sauvegardes.
 4. Redémarrer, vérifier la version et faire `Ctrl+F5`.
-5. Vérifier que le fichier de base configuré reste `C:\Users\HP\Documents\imf_archive\backend\imf_archive_pro`.
+5. Vérifier que le fichier de base configuré reste `C:\Users\HP\Documents\GitHub\imf_archives\backend\db\imf_archive_pro`.
 
 Ne pas lancer les scripts depuis un fichier ZIP non extrait. Éviter les dossiers de données actifs synchronisés par OneDrive en cas de conflits. Le cookie de session s'appelle `imf_archive_session` ; les cookies ignorent les ports, donc éviter de réutiliser ce nom pour une autre application sur `localhost`.
 
