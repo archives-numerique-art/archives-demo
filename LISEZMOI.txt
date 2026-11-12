@@ -1,0 +1,43 @@
+IMF ARCHIVE - version 10 : backend et frontend séparés
+=======================================================
+
+Trois dossiers :
+  backend   L'API et les règles métier (sécurité, droits, calculs). Port 5001. C'est le seul à toucher la base de données.
+  frontend  L'interface (pages web). Port 5000. Elle appelle le backend avec fetch ; elle n'accède jamais à la base.
+  Skills    Les connaissances du projet (règles, base de données, déploiement, sécurité, design, assistance).
+
+BASE DE DONNÉES : SQLite (un simple fichier)  ->  backend\imf_archive_pro
+  La base et les données de clients ne sont pas publiées sur GitHub. Après téléchargement du code,
+  placez une copie autorisée de la base à ce chemin avant de démarrer l'application.
+  Tables : users, depts, docs, grants, demandes, log (structure conservée dans ce fichier SQLite).
+  DBeaver : Nouvelle connexion > SQLite > Path = le fichier imf_archive_pro ci-dessus. Lisez sans modifier
+  (de préférence sur une copie issue d'une sauvegarde). Les mots de passe y sont hachés, jamais en clair.
+
+DÉMARRER (Windows)
+  1. Python doit être installé (python.org). Une seule fois.
+  2. Double-cliquez sur  demarrer_local.bat  : deux fenêtres noires s'ouvrent (BACKEND et FRONTEND), puis Chrome
+     ouvre http://localhost:5000. Laissez les deux fenêtres ouvertes.
+  3. Première utilisation : la page demande de créer le compte du super administrateur.
+  4. Pour que des collègues se connectent depuis le même réseau : demarrer_reseau.bat, puis donnez-leur
+     http://VOTRE_ADRESSE:5000 (Windows : autorisez les ports 5000 et 5001, voir Skills\imf-archive-deploiement).
+  Arrêter : fermez les deux fenêtres noires.
+
+RÉCUPÉRER UNE ANCIENNE BASE
+  Arrêtez l'application et sauvegardez les fichiers avant toute migration. Copiez l'ancienne base SQLite
+  dans backend\imf_archive_pro (remplacement uniquement si vous avez confirmé qu'il s'agit bien de la base voulue).
+  Au démarrage, les anciennes colonnes connues sont complétées automatiquement. Conservez les fichiers scannés correspondants
+  dans backend\donnees\fichiers. Pour conserver un ancien chemin de données complet, configurez IMF_DONNEES ;
+  IMF_DB permet de choisir explicitement un autre fichier SQLite.
+
+DONNÉES DE DÉMONSTRATION (facultatif, base vide uniquement) :  backend\donnees_demo.bat   (mot de passe de tous les comptes : Demo2026!)
+MOT DE PASSE OUBLIÉ DU SUPER ADMINISTRATEUR :  backend\reinitialiser_mot_de_passe.bat
+
+OÙ SONT LES DONNÉES
+  imf_archive_pro         la base      donnees\fichiers   les documents scannés    journaux\   le journal en Excel (un fichier par mois)
+  exports\                les fiches d'audit en Excel      sauvegardes\   les sauvegardes zip (14 gardées)
+  Le menu « Mes données » de l'application affiche ces chemins exacts.
+
+TESTS :  py backend\tests\test_api.py   (utilise des dossiers temporaires, ne touche pas à vos données)
+
+MISE À JOUR : fermez les deux fenêtres, faites une sauvegarde, remplacez les dossiers backend (sauf donnees, journaux, exports,
+  sauvegardes) et frontend par les nouveaux, puis relancez. Le numéro de version est en bas du menu de gauche.

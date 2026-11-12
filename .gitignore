@@ -1,0 +1,20 @@
+# Base SQLite et données réelles (ne jamais publier)
+backend/imf_archive_pro
+backend/imf_archive_pro-*
+backend/donnees/
+backend/journaux/
+backend/exports/
+backend/sauvegardes/
+
+# Fichiers locaux et secrets
+*.db
+*.sqlite
+*.sqlite3
+*.tmp
+*.env
+*.env.*
+backend/cle.txt
+
+# Fichiers générés par Python
+__pycache__/
+*.py[cod]
