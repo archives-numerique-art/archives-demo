@@ -72,8 +72,17 @@ import api
 A = api.app.test_client(); H = {"Origin": "http://localhost:%d" % C.PORT_FRONTEND}
 view_conn = base.connecter()
 view_cols = {r[1] for r in view_conn.execute("pragma table_info(v_documents)")}
+user_view_cols = {r[1] for r in view_conn.execute("pragma table_info(v_utilisateurs)")}
+index_names = {r[0] for r in view_conn.execute("select name from sqlite_master where type='index'")}
+view_names = {r[0] for r in view_conn.execute("select name from sqlite_master where type='view'")}
 view_conn.close()
 verif({"id", "departement", "fichier_joint"}.issubset(view_cols), "vue des documents : identifiant et colonnes de registre disponibles")
+verif({"v_documents", "v_acces_en_cours", "v_demandes", "v_journal_audit", "v_utilisateurs"}.issubset(view_names),
+      "vues des registres créées et maintenues par migration")
+verif("mdp" not in user_view_cols, "vue des utilisateurs : aucun mot de passe exposé")
+verif({"idx_docs_date", "idx_docs_service_filter", "idx_docs_cree", "idx_docs_num_upper", "idx_grants_user_jusqu",
+       "idx_grants_doc_jusqu", "idx_demandes_user_id", "idx_demandes_statut_portee_valeur",
+       "idx_log_t_id", "idx_log_user_t"}.issubset(index_names), "index de recherche et de relations créés par migration")
 r = A.get("/api/etat", headers=H); verif(r.get_json()["setup_requis"], "base vide : configuration initiale demandée")
 verif(A.post("/api/setup", json={"nom": "boss", "mdp": "court"}, headers=H).status_code == 400, "setup : mot de passe trop court refusé")
 r = A.post("/api/setup", json={"nom": "boss", "mdp": "MotDePasse1"}, headers=H); verif(r.status_code == 200 and r.get_json()["moi"]["role"] == "admin", "setup : super administrateur créé")

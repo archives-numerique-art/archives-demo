@@ -23,6 +23,50 @@ MIGRATIONS = (  # pour compléter les anciennes bases (versions 4 à 9)
     "alter table grants add column portee text default 'doc'", "alter table grants add column valeur text",
     "alter table demandes add column portee text default 'doc'", "alter table demandes add column valeur text")
 
+INDEXES = (
+    "create index if not exists idx_docs_date on docs(date collate nocase)",
+    "create index if not exists idx_docs_service on docs(service)",
+    "create index if not exists idx_docs_service_filter on docs(coalesce(nullif(service,''),'~'))",
+    "create index if not exists idx_docs_cree on docs(cree collate nocase)",
+    "create index if not exists idx_docs_num_upper on docs(upper(num))",
+    "create index if not exists idx_grants_user_jusqu on grants(user, jusqu)",
+    "create index if not exists idx_grants_doc_jusqu on grants(doc, jusqu)",
+    "create index if not exists idx_grants_jusqu on grants(jusqu)",
+    "create index if not exists idx_demandes_user_id on demandes(user, id desc)",
+    "create index if not exists idx_demandes_statut_user on demandes(statut, user)",
+    "create index if not exists idx_demandes_statut_portee_valeur on demandes(statut, portee, lower(valeur))",
+    "create index if not exists idx_log_t_id on log(t, id desc)",
+    "create index if not exists idx_log_user_t on log(u, t)")
+
+VUES_REGISTRES = {
+    "v_acces_en_cours": """
+        select users.nom as utilisateur, coalesce(grants.portee,'doc') as portee,
+               case when coalesce(grants.portee,'doc')='doc' then docs.num else grants.valeur end as cible,
+               grants.jusqu as jusqu_au
+        from grants join users on users.id=grants.user
+        left join docs on docs.id=grants.doc
+        where grants.jusqu>=date('now')
+    """,
+    "v_demandes": """
+        select demandes.id as no, demandes.cree as date_demande, users.nom as demandeur,
+               coalesce(demandes.portee,'doc') as portee,
+               case when coalesce(demandes.portee,'doc')='doc' then docs.num else demandes.valeur end as cible,
+               demandes.jours as duree_jours, demandes.motif as motif, demandes.statut as statut,
+               demandes.reponse as reponse
+        from demandes join users on users.id=demandes.user
+        left join docs on docs.id=demandes.doc
+    """,
+    "v_journal_audit": """
+        select id as no, t as date_heure, u as utilisateur, a as action, d as cible
+        from log
+    """,
+    "v_utilisateurs": """
+        select nom, role, departement, comptes as peut_creer_comptes, accorde as peut_accorder,
+               archiviste as peut_ajouter_supprimer, confid as voit_confidentiels
+        from users
+    """,
+}
+
 
 def assurer_vue_documents(c):
     vue = c.execute("select type from sqlite_master where name='v_documents'").fetchone()
@@ -43,6 +87,14 @@ def assurer_vue_documents(c):
     """)
 
 
+def assurer_vues_registres(c):
+    for nom, select in VUES_REGISTRES.items():
+        objet = c.execute("select type from sqlite_master where name=?", (nom,)).fetchone()
+        if objet and objet[0] != "view":
+            raise RuntimeError("Impossible de créer %s : un objet de base de données porte déjà ce nom." % nom)
+        c.execute("create view if not exists %s as %s" % (nom, select))
+
+
 def init_db():
     if not os.path.isfile(C.DB):
         raise FileNotFoundError("Base SQLite introuvable : %s" % C.DB)
@@ -59,6 +111,8 @@ def init_db():
             except sqlite3.OperationalError as e:
                 if "duplicate column name" not in str(e).lower(): raise
         assurer_vue_documents(c)
+        assurer_vues_registres(c)
+        for q in INDEXES: c.execute(q)
         c.commit()
     except Exception:
         c.rollback()
