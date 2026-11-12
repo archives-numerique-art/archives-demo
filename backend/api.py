@@ -196,12 +196,13 @@ def documents():
     if a.get("dept"): w.append("coalesce(nullif(service,''),'~') = ?"); p.append(a["dept"])
     if a.get("niveau"): w.append("niveau = ?"); p.append(a["niveau"])
     if a.get("type"): w.append("type = ?"); p.append(a["type"])
+    if a.get("etat"): w.append("etat = ?"); p.append(a["etat"])
     q = sk(a.get("q", "").strip())
     if q: w.append("sk(coalesce(num,'')||' '||coalesce(titre,'')||' '||coalesce(service,'')||' '||coalesce(type,'')) like ?"); p.append("%" + q + "%")
     cond = " and ".join(w); ordre = "date desc, id desc" if a.get("tri") == "date" else "sk(titre), id"
-    rows = db().execute("select id,num,titre,service,type,date,niveau,etat,cree, ouvrable(id,niveau,type,service) acces from docs where " + cond + " order by " + ordre + " limit 2000", p).fetchall()
-    total = db().execute("select count(*) from docs where " + cond, p).fetchone()[0]
-    return jsonify({"documents": [dict(r) for r in rows], "total": total})
+    rows = db().execute("select id,num,titre,service,type,date,niveau,etat,cree, (fichier_joint='oui') a_fichier, ouvrable(id,niveau,type,service) acces from v_documents where " + cond + " order by " + ordre + " limit 2000", p).fetchall()
+    total = db().execute("select count(*) from v_documents where " + cond, p).fetchone()[0]
+    return jsonify({"documents": [dict(r, a_fichier=bool(r["a_fichier"])) for r in rows], "total": total})
 
 
 @app.get("/api/documents/<int:i>")

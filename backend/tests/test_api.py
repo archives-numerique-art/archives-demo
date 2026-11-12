@@ -62,9 +62,18 @@ else:
 finally:
     C.DB = db_temporaire
 
+# Simule une ancienne vue sans identifiant de ligne : la migration doit la mettre à niveau.
+ancien = sqlite3.connect(C.DB)
+ancien.execute("create view v_documents as select num, titre, service as departement, type, date, niveau, etat, cree from docs")
+ancien.commit(); ancien.close()
+
 # ---- 1. première utilisation (base vide)
 import api
 A = api.app.test_client(); H = {"Origin": "http://localhost:%d" % C.PORT_FRONTEND}
+view_conn = base.connecter()
+view_cols = {r[1] for r in view_conn.execute("pragma table_info(v_documents)")}
+view_conn.close()
+verif({"id", "departement", "fichier_joint"}.issubset(view_cols), "vue des documents : identifiant et colonnes de registre disponibles")
 r = A.get("/api/etat", headers=H); verif(r.get_json()["setup_requis"], "base vide : configuration initiale demandée")
 verif(A.post("/api/setup", json={"nom": "boss", "mdp": "court"}, headers=H).status_code == 400, "setup : mot de passe trop court refusé")
 r = A.post("/api/setup", json={"nom": "boss", "mdp": "MotDePasse1"}, headers=H); verif(r.status_code == 200 and r.get_json()["moi"]["role"] == "admin", "setup : super administrateur créé")
@@ -102,6 +111,10 @@ verif(api.app.test_client().get("/api/documents", headers=H).status_code == 401,
 # ---- 4. règles de visibilité et de confidentialité
 def docs(c, q=""): return c.get("/api/documents" + q).get_json()
 verif(docs(ad)["total"] == 6, "admin voit les 6 documents")
+verif(all(isinstance(d.get("a_fichier"), bool) for d in docs(ad)["documents"]) and all(d["a_fichier"] for d in docs(ad)["documents"]),
+      "registre des documents indique si un scan est attaché")
+verif(docs(ad, "?etat=Scanné")["total"] == 6 and docs(ad, "?etat=À%20scanner")["total"] == 0,
+      "registre des documents : filtre par état")
 verif(docs(ag)["total"] == 4 and all(d["niveau"] != "Confidentiel" and d["type"] != "Dossier du personnel" for d in docs(ag)["documents"]), "agent : voit les 4 documents non confidentiels")
 d_bravo = next(d for d in docs(ad)["documents"] if "Bravo" in d["titre"])
 verif(ag.get("/api/documents/%d" % d_bravo["id"]).status_code == 404 or d_bravo["niveau"] != "Confidentiel", "agent : confidentiel introuvable")
@@ -170,7 +183,9 @@ verif(docs(ad, "?mois=2025&dept=Crédit")["total"] == 3, "filtre année + dépar
 imp(it, "2026-11", "Crédit", ["N1.pdf", "N2.pdf"]); ids = [d["id"] for d in docs(ad, "?tri=date")["documents"]]
 ad.post("/api/documents/supprimer", json={"ids": ids[:2]}); imp(it, "2026-11", "Crédit", ["N3.pdf"])
 nums = [d["num"] for d in docs(ad)["documents"]]; verif(len(nums) == len(set(nums)), "numéros uniques après suppression et nouvel import")
-r = it.c.post("/api/documents", data={"titre": "Contrat X", "service": "Crédit", "type": "Contrat", "niveau": "Interne", "etat": "À scanner", "date": "2026-11-05"}, content_type="multipart/form-data", headers=it.h()); verif(r.status_code == 200, "création d'un document sans fichier")
+r = it.c.post("/api/documents", data={"titre": "Contrat X", "service": "Crédit", "type": "Contrat", "niveau": "Interne", "etat": "À scanner", "date": "2026-11-05"}, content_type="multipart/form-data", headers=it.h())
+sans_scan = next(d for d in docs(ad)["documents"] if d["titre"] == "Contrat X")
+verif(r.status_code == 200 and sans_scan["a_fichier"] is False, "création sans scan : la liste indique correctement l'absence de fichier")
 
 # ---- 9. tableau de bord, navigation (calculs SQL)
 a = ad.get("/api/accueil").get_json(); verif(a["total"] == docs(ad)["total"] and a["aujourdhui"] >= 1, "accueil : totaux calculés en SQL")

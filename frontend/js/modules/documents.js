@@ -5,27 +5,56 @@ export function configurerDocuments(context) { Object.assign(actions, context); 
 
 export async function vueAccueil() {
   const a = await api("/accueil");
-  const carte = (cl, ic, n, lb, lien) => `<div class="stat ${cl}"><div class="hd"><span class="ic">${ic}</span><div class="r"><div class="nb">${n}</div><div class="lb">${esc(lb)}</div></div></div><div class="ft"><a href="#${lien}">Voir le détail →</a></div></div>`;
-  contenu(`<h2>Accueil</h2><div class="stats">${carte("c-bleu", "📚", a.total, "Documents consultables", "/dossiers")}${carte("c-vert", "🆕", a.ce_mois, "Enregistrés ce mois-ci", "/liste?tri=date")}
-    ${carte("c-orange", "📨", a.demandes, a.demandes_libelle, "/demandes")}${carte("c-rouge", "📥", a.aujourdhui, "Enregistrés aujourd'hui", "/liste?tri=date")}</div>
-    <details class="card guide" open><summary><b>Bienvenue sur Archives IMF : comment ça marche</b></summary><ol>
-      <li><b>Chercher :</b> cliquez sur une année, un mois, puis un département pour voir ses documents, ou tapez un nom dans la recherche.</li>
-      <li><b>Consulter :</b> cliquez sur un document pour l'ouvrir. Les documents Publics et Internes sont ouverts à tous.</li>
-      ${droit("importer") ? "<li><b>Ajouter :</b> menu Importer : choisissez le mois, le type, le niveau et le département, puis sélectionnez tous vos fichiers à la fois (Ctrl+A).</li>" : ""}
-      <li><b>Confidentiel :</b> certains documents et départements sont cachés. Pour les consulter, menu Demandes, puis Nouvelle demande : indiquez le motif et la durée.</li>
-      <li><b>Affichage :</b> le bouton Sombre / Clair du menu change les couleurs.</li></ol></details>
-    ${a.partages.length ? `<div class="card"><h4>Documents confidentiels partagés avec vous</h4>${a.partages.map((r) => `<p><a href="#/doc/${r.id}"><b>${esc(r.num)}</b> ${esc(r.titre)}</a> <span class="muted">(${esc(r.service)})</span></p>`).join("")}</div>` : ""}
-    <div class="card"><h4>Résumé</h4><p>📚 Vous pouvez consulter <b>${a.total}</b> document(s) dans <b>${a.departements}</b> département(s).</p>
-      <p>🆕 <b>${a.ce_mois}</b> document(s) enregistré(s) en ${esc(a.mois_libelle)}, dont <b>${a.aujourdhui}</b> aujourd'hui.</p>
-      ${a.dernier ? `<p>🕒 Dernier enregistrement : <a href="#/doc/${a.dernier.id}">${esc(a.dernier.num)}</a> ${esc((a.dernier.titre || "").slice(0, 50))}, le ${fr(a.dernier.cree)}.</p>` : ""}
-      <p class="muted">Les classements par département, par niveau d'accès et les derniers documents sont dans le panneau de gauche, rubrique « Rubriques ».</p></div>`);
+  const date = new Date(), jour = [date.getFullYear(), String(date.getMonth() + 1).padStart(2, "0"), String(date.getDate()).padStart(2, "0")].join("-");
+  const carte = (cl, ic, n, lb, detail, lien) => `<a class="dashboard-metric ${cl}" href="#${lien}" aria-label="${esc(lb)} : ${n}. ${esc(detail)}">
+    <span class="dashboard-metric-icon" aria-hidden="true">${ic}</span>
+    <span class="dashboard-metric-content"><span class="dashboard-metric-label">${esc(lb)}</span><strong class="dashboard-metric-value">${n}</strong><span class="dashboard-metric-detail">${esc(detail)}</span></span>
+    <span class="dashboard-metric-arrow" aria-hidden="true">→</span></a>`;
+  const documents = a.dernier
+    ? `<a class="dashboard-latest-link" href="#/doc/${a.dernier.id}">
+        <span class="dashboard-latest-icon" aria-hidden="true">📄</span>
+        <span class="dashboard-latest-copy"><span class="dashboard-latest-number">${esc(a.dernier.num)}</span><strong>${esc(a.dernier.titre || "Document sans titre")}</strong><span class="dashboard-latest-date">Enregistré le ${fr(a.dernier.cree)}</span></span>
+        <span class="dashboard-latest-arrow" aria-hidden="true">→</span>
+      </a>`
+    : `<div class="dashboard-empty"><span aria-hidden="true">📂</span><p>Aucun document enregistré pour le moment.</p></div>`;
+  contenu(`<header class="dashboard-heading">
+      <div><p class="eyebrow">Archives IMF</p><h2>Tableau de bord</h2><p class="muted">Suivez l’activité des archives et accédez rapidement à vos priorités.</p></div>
+      <div class="dashboard-period"><span>Période en cours</span><strong>${esc(a.mois_libelle)}</strong></div>
+    </header>
+    <section class="dashboard-metrics" aria-label="Indicateurs des archives">
+      ${carte("metric-blue", "📚", a.total, "Documents consultables", a.departements + (a.departements === 1 ? " département couvert" : " départements couverts"), "/dossiers")}
+      ${carte("metric-green", "🆕", a.ce_mois, "Enregistrés ce mois-ci", a.mois_libelle, "/liste?cree=" + jour.slice(0, 7))}
+      ${carte("metric-orange", "📨", a.demandes, a.demandes_libelle, "Accéder au suivi des demandes", "/demandes")}
+      ${carte("metric-red", "📥", a.aujourdhui, "Enregistrés aujourd’hui", "Ajouts du jour", "/liste?cree=" + jour)}
+    </section>
+    <section class="dashboard-panels">
+      <article class="card dashboard-panel">
+        <header class="dashboard-panel-heading"><div><p class="eyebrow">Activité récente</p><h3>Dernier enregistrement</h3></div></header>
+        ${documents}
+      </article>
+      <article class="card dashboard-panel">
+        <header class="dashboard-panel-heading"><div><p class="eyebrow">Raccourcis</p><h3>Actions rapides</h3></div></header>
+        <nav class="dashboard-actions" aria-label="Actions rapides">
+          <a href="#/dossiers"><span class="dashboard-action-icon" aria-hidden="true">⌕</span><span><strong>Parcourir les archives</strong><small>Rechercher un document</small></span><span class="dashboard-action-arrow" aria-hidden="true">→</span></a>
+          ${droit("importer") ? `<a href="#/import"><span class="dashboard-action-icon" aria-hidden="true">↑</span><span><strong>Importer des documents</strong><small>Ajouter des scans aux archives</small></span><span class="dashboard-action-arrow" aria-hidden="true">→</span></a>` : ""}
+          <a href="#/demandes/nouvelle"><span class="dashboard-action-icon" aria-hidden="true">＋</span><span><strong>Demander un accès</strong><small>Accéder à un document protégé</small></span><span class="dashboard-action-arrow" aria-hidden="true">→</span></a>
+        </nav>
+      </article>
+    </section>
+    ${a.partages.length ? `<section class="card dashboard-panel dashboard-shares">
+      <header class="dashboard-panel-heading"><div><p class="eyebrow">Accès temporaire</p><h3>Documents partagés avec vous</h3></div><span class="dashboard-count">${a.partages.length}</span></header>
+      <div class="dashboard-share-list">${a.partages.map((r) => `<a href="#/doc/${r.id}"><span class="dashboard-share-number">${esc(r.num)}</span><span class="dashboard-share-title">${esc(r.titre)}</span><span class="dashboard-share-department">${esc(r.service || "—")}</span><span class="dashboard-action-arrow" aria-hidden="true">→</span></a>`).join("")}</div>
+    </section>` : ""}
+    <details class="card dashboard-guide"><summary>Repères d’utilisation</summary><ul>
+      <li>Parcourez les archives ou utilisez la recherche pour retrouver un document.</li>
+      <li>Les documents confidentiels nécessitent un accès autorisé ; une demande peut être faite depuis « Demander un accès ».</li>
+      ${droit("importer") ? "<li>Importez un ou plusieurs scans depuis « Importer des documents ».</li>" : ""}
+    </ul></details>`);
 }
 
 // ------------------------------------------------------------------ dossiers : années > mois > départements
-export async function vueDossiers() {
-  const arbre = S.nav.arbre;
-  contenu(`<h2>Choisissez un mois</h2>${arbre.map((y) => `<h4><a href="#/mois?m=${y.annee}">Année ${esc(y.annee)}</a> <span class="muted">- ${y.total} document(s), tous les mois</span></h4>${y.mois.map((m) =>
-    `<div class="card"><a href="#/mois?m=${m.mois}"><b>📁 ${esc(m.libelle)}</b></a> <span class="muted">- ${m.total} document(s)</span></div>`).join("")}`).join("") || "<p class='muted'>Aucun document pour le moment.</p>"}`);
+export async function vueDossiers(p = {}) {
+  return vueListe(p);
 }
 
 export async function vueMois(p) {
@@ -38,38 +67,92 @@ export async function vueMois(p) {
 
 // ------------------------------------------------------------------ liste des documents
 export async function vueListe(p) {
-  const d = await api("/documents?" + new URLSearchParams(p)), sup = droit("supprimer");
-  const nomDept = p.dept ? (p.dept === "~" ? "(sans département)" : p.dept) : "";
-  const actifs = [["q", p.q, "Recherche"], ["niveau", p.niveau, "Niveau"], ["type", p.type, "Type"], ["tri", p.tri === "date" ? "Plus récents d'abord" : "", "Tri"], ["dept", nomDept, "Département"], ["mois", p.mois, "Mois"]].filter((x) => x[1]);
+  const filtreCreation = /^\d{4}-(0[1-9]|1[0-2])(?:-(0[1-9]|[12]\d|3[01]))?$/.test(p.cree || "") ? p.cree : "";
+  const moisValide = /^\d{4}-(0[1-9]|1[0-2])$/.test(p.date_debut || "") ? p.date_debut : "";
+  const moisFinValide = /^\d{4}-(0[1-9]|1[0-2])$/.test(p.date_fin || "") ? p.date_fin : "";
+  const plageInvalide = moisValide && moisFinValide && moisValide > moisFinValide;
+  const filtresApi = new URLSearchParams(p); filtresApi.delete("cree"); filtresApi.delete("date_debut"); filtresApi.delete("date_fin");
+  const d = await api("/documents?" + filtresApi), sup = droit("supprimer");
+  const documents = d.documents.filter((r) => {
+    if (plageInvalide) return false;
+    if (filtreCreation && (filtreCreation.length === 7 ? !(r.cree || "").startsWith(filtreCreation) : r.cree !== filtreCreation)) return false;
+    if (moisValide || moisFinValide) {
+      const moisClassement = (r.date || "").slice(0, 7);
+      if (!moisClassement || (moisValide && moisClassement < moisValide) || (moisFinValide && moisClassement > moisFinValide)) return false;
+    }
+    return true;
+  });
+  const filtreClientActif = !!(filtreCreation || moisValide || moisFinValide);
+  const total = filtreClientActif ? documents.length : d.total;
+  const limiteApi = d.total > d.documents.length;
+  const departements = S.nav.departements || [];
+  const nomDept = p.dept ? ((departements.find((x) => x.valeur === p.dept) || {}).nom || (p.dept === "~" ? "(sans département)" : p.dept)) : "";
+  const libelleMois = (m) => new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(m + "-01T00:00:00Z"));
+  const valeurCreation = filtreCreation ? (filtreCreation.length === 7
+    ? new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(filtreCreation + "-01T00:00:00Z"))
+    : fr(filtreCreation)) : "";
+  const actifs = [["q", p.q, "Recherche"], ["niveau", p.niveau, "Niveau"], ["type", p.type, "Type"], ["etat", p.etat, "État"], ["tri", p.tri === "date" ? "Plus récents d'abord" : "", "Tri"], ["dept", nomDept, "Département"], ["mois", p.mois, "Période"], ["date_debut", moisValide ? libelleMois(moisValide) : "", "Date de début"], ["date_fin", moisFinValide ? libelleMois(moisFinValide) : "", "Date de fin"], ["cree", valeurCreation, "Création"]].filter((x) => x[1]);
+  const nombreFiltres = actifs.filter(([k]) => k !== "q").length;
   const puces = actifs.map(([k, v, label]) => {
     const restant = new URLSearchParams(p); restant.delete(k);
-    return `<a class="filter-chip" href="#/liste${restant.toString() ? "?" + restant : ""}">${esc(label)} : ${esc(v)} <span aria-hidden="true">×</span><span class="sr-only">, retirer ce filtre</span></a>`;
+    return `<a class="filter-chip" href="#/liste${restant.toString() ? "?" + restant : ""}" aria-label="Retirer le filtre ${esc(label)} : ${esc(v)}"><span>${esc(label)} : ${esc(v)}</span><span aria-hidden="true">×</span></a>`;
   }).join("");
-  const lignes = d.documents.map((r) => `<tr>
+  const lignes = documents.map((r) => `<tr>
       ${sup ? `<td class="select-cell"><input type="checkbox" class="coche" value="${r.id}" aria-label="Sélectionner ${esc(r.num)}"></td>` : ""}
-      <td><a class="doc-link" href="#/doc/${r.id}"><b>${esc(r.num)}</b><span>${esc(r.titre)}</span></a></td>
-      <td>${esc(r.service || "—")}</td><td>${esc(r.type)}</td><td>${fr(r.date)}</td>
+      <td class="doc-cell"><a class="doc-link" href="${r.acces && r.a_fichier ? `${API}/documents/${r.id}/fichier` : "#/doc/" + r.id}" ${r.acces && r.a_fichier ? 'target="_blank" rel="noopener"' : ""}><b>${esc(r.num)}</b><span>${esc(r.titre)}</span></a></td>
+      <td class="department-cell">${esc(r.service || "—")}</td><td class="type-cell">${esc(r.type)}</td><td class="date-cell">${fr(r.date)}</td>
       <td><span class="tag n-${esc(r.niveau)}">${esc(r.niveau)}</span></td><td><span class="tag">${esc(r.etat)}</span>${r.acces ? "" : `<span class="sr-only">, accès restreint</span>`}</td>
-      <td><details class="row-menu"><summary aria-label="Actions pour ${esc(r.num)}">⋯</summary><div class="row-menu-items"><a href="#/doc/${r.id}">Ouvrir la fiche</a></div></details></td>
+      <td class="actions-cell"><details class="row-menu"><summary aria-label="Actions pour ${esc(r.num)}">⋯</summary><div class="row-menu-items">
+        ${r.acces && r.a_fichier
+    ? `<a href="${API}/documents/${r.id}/fichier" target="_blank" rel="noopener"><span class="row-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg></span><span>Ouvrir le document</span></a>`
+    : `<a href="#/doc/${r.id}"><span class="row-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path><circle cx="12" cy="12" r="2.5"></circle></svg></span><span>${r.acces ? "Voir les informations" : "Voir les informations / accès"}</span></a>`}
+        ${sup ? `<button type="button" class="row-delete" data-id="${r.id}"><span class="row-menu-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"></path></svg></span><span>Supprimer</span></button>` : ""}
+      </div></details></td>
     </tr>`).join("");
-  contenu(`<header class="page-heading"><div><p class="eyebrow">Archives</p><h2>Documents</h2><p class="muted">${p.dept ? "Département : " + esc(nomDept) + " · " : ""}${p.mois ? "Période : " + esc(p.mois) + " · " : ""}${d.total} document(s)</p></div>
+  contenu(`<header class="page-heading"><div><p class="eyebrow">Archives</p><h2>Documents</h2><p class="muted">${p.dept ? "Département : " + esc(nomDept) + " · " : ""}${p.mois ? "Période : " + esc(p.mois) + " · " : ""}${moisValide ? "Du " + esc(libelleMois(moisValide)) + " · " : ""}${moisFinValide ? "au " + esc(libelleMois(moisFinValide)) + " · " : ""}${valeurCreation ? "Création " + esc(valeurCreation) + " · " : ""}${total} document(s)</p></div>
       ${droit("importer") ? `<div class="page-actions"><a class="button button-secondary" href="#/import">Importer</a><a class="button" href="#/nouveau">+ Nouveau document</a></div>` : ""}</header>
     <form class="card table-toolbar" id="filtre">
-      <label class="table-search">Rechercher dans les documents<input name="q" type="search" placeholder="Nom, numéro, département…" value="${esc(p.q || "")}"></label>
-      <label>Niveau<select name="niveau">${options(S.meta.niveaux, p.niveau, "Tous les niveaux")}</select></label>
-      <label>Type<select name="type">${options(S.meta.types, p.type, "Tous les types")}</select></label>
-      <label>Trier par<select name="tri"><option value="">Ordre alphabétique</option><option value="date" ${p.tri === "date" ? "selected" : ""}>Plus récents</option></select></label>
-      <input type="hidden" name="mois" value="${esc(p.mois || "")}"><input type="hidden" name="dept" value="${esc(p.dept || "")}">
-      <div class="toolbar-actions"><button type="submit">Rechercher</button>${actifs.length ? `<a class="button button-quiet" href="#/liste">Réinitialiser</a>` : ""}</div>
+      <div class="table-search-row">
+        <label class="table-search">Rechercher dans les documents<input name="q" type="search" placeholder="Nom, numéro, département…" value="${esc(p.q || "")}"></label>
+        <button type="submit">Rechercher</button>
+      </div>
+      <details class="filter-panel" ${actifs.length || plageInvalide ? "open" : ""}>
+        <summary><span class="filter-summary-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 5h18l-7 8v5l-4 2v-7L3 5Z"></path></svg></span>
+          <span class="filter-show">Afficher les filtres</span><span class="filter-hide">Masquer les filtres</span>
+          ${nombreFiltres ? `<span class="filter-count">${nombreFiltres} actif(s)</span>` : ""}
+        </summary>
+        <div class="filter-grid">
+          <label>Niveau<select name="niveau">${options(S.meta.niveaux, p.niveau, "Tous les niveaux")}</select></label>
+          <label>Type<select name="type">${options(S.meta.types, p.type, "Tous les types")}</select></label>
+          <label>État<select name="etat">${options(S.meta.etats, p.etat, "Tous les états")}</select></label>
+          <label>Département<select name="dept"><option value="">Tous les départements</option>${departements.map((x) => `<option value="${esc(x.valeur)}" ${x.valeur === p.dept ? "selected" : ""}>${esc(x.nom)}</option>`).join("")}${p.dept && !departements.some((x) => x.valeur === p.dept) ? `<option value="${esc(p.dept)}" selected>${esc(nomDept)}</option>` : ""}</select></label>
+          <label>Date de début<span class="sr-only"> du mois de classement</span><input name="date_debut" type="month" value="${esc(moisValide)}"></label>
+          <label>Date de fin<span class="sr-only"> du mois de classement</span><input name="date_fin" type="month" value="${esc(moisFinValide)}"></label>
+          <label>Trier par<select name="tri"><option value="">Ordre alphabétique</option><option value="date" ${p.tri === "date" ? "selected" : ""}>Plus récents</option></select></label>
+          <input type="hidden" name="mois" value="${esc(p.mois || "")}">
+          <input type="hidden" name="cree" value="${esc(filtreCreation)}">
+          <p class="filter-error" id="range-error" role="alert" ${plageInvalide ? "" : "hidden"}>La date de début doit être antérieure ou égale à la date de fin.</p>
+          <div class="toolbar-actions"><button type="submit">Appliquer les filtres</button>${actifs.length ? `<a class="button button-quiet" href="#/liste">Tout effacer</a>` : ""}</div>
+        </div>
+      </details>
     </form>
-    ${puces ? `<div class="active-filters" aria-label="Filtres actifs"><span>Filtres actifs</span>${puces}</div>` : ""}
+    ${puces ? `<div class="active-filters" aria-label="Filtres appliqués"><span>Filtres appliqués (${actifs.length})</span>${puces}</div>` : ""}
     <section class="card table-card" aria-label="Liste des documents">
-      ${sup && d.documents.length ? `<div class="selection-bar"><label><input type="checkbox" id="tout" aria-label="Tout sélectionner les documents"> Tout sélectionner</label><span id="selection-count" class="muted">Aucune ligne sélectionnée</span><button class="danger" id="suppr" type="button" disabled>Supprimer la sélection</button></div>` : ""}
-      ${d.documents.length ? `<div class="table-wrap"><table class="data-table"><thead><tr>${sup ? `<th class="select-cell"><span class="sr-only">Sélection</span></th>` : ""}<th>Document</th><th>Département</th><th>Type</th><th>Date</th><th>Niveau</th><th>État</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${lignes}</tbody></table></div>
-        ${d.total > d.documents.length ? `<p class="muted table-footnote">${d.documents.length} résultats affichés sur ${d.total}. L’API limite actuellement la liste à 2 000 documents.</p>` : `<p class="muted table-footnote">${d.total} résultat(s)</p>`}`
-        : `<div class="empty-state"><span class="empty-icon" aria-hidden="true">⌕</span><h3>${actifs.length ? "Aucun résultat" : "Aucun document à afficher"}</h3><p>${actifs.length ? "Modifiez ou réinitialisez vos critères de recherche." : "Les documents visibles apparaîtront ici."}</p>${actifs.length ? `<a class="button button-secondary" href="#/liste">Effacer les filtres</a>` : ""}</div>`}
+      ${sup && documents.length ? `<div class="selection-bar"><label><input type="checkbox" id="tout" aria-label="Tout sélectionner les documents"> Tout sélectionner</label><span id="selection-count" class="muted" aria-live="polite">Aucune ligne sélectionnée</span><button class="danger" id="suppr" type="button" disabled>Supprimer la sélection</button></div>` : ""}
+      ${documents.length ? `<div class="table-wrap"><table class="data-table"><caption class="sr-only">Documents correspondant aux critères appliqués</caption><thead><tr>${sup ? `<th class="select-cell" scope="col"><span class="sr-only">Sélection</span></th>` : ""}<th scope="col">Document</th><th scope="col">Département</th><th scope="col">Type</th><th scope="col">Date</th><th scope="col">Niveau</th><th scope="col">État</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody>${lignes}</tbody></table></div>
+        ${limiteApi ? `<p class="muted table-footnote">${documents.length} résultat(s) parmi les ${d.documents.length} documents reçus. L’API limite actuellement la liste à 2 000 documents.</p>` : `<p class="muted table-footnote">${total} résultat(s)</p>`}`
+        : `<div class="empty-state"><span class="empty-icon" aria-hidden="true">⌕</span><h3>${actifs.length ? "Aucun résultat" : "Aucun document à afficher"}</h3><p>${actifs.length ? "Modifiez ou réinitialisez vos critères de recherche." : "Les documents visibles apparaîtront ici."}</p>${actifs.length ? `<a class="button button-secondary" href="#/liste">Effacer les filtres</a>` : ""}</div>${limiteApi && filtreClientActif ? `<p class="muted table-footnote">Filtre appliqué aux ${d.documents.length} documents reçus ; l’API limite la liste à 2 000, le total complet peut différer.</p>` : ""}`}
     </section>`);
-  q("#filtre").addEventListener("submit", (e) => { e.preventDefault(); const f = new URLSearchParams(); new FormData(e.target).forEach((v, k) => { if (v) f.set(k, v); }); location.hash = "#/liste?" + f; });
+  q("#filtre").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target), debut = fd.get("date_debut"), fin = fd.get("date_fin"), erreur = q("#range-error");
+    if (debut && fin && debut > fin) { erreur.hidden = false; q('[name="date_fin"]').focus(); return; }
+    erreur.hidden = true;
+    const f = new URLSearchParams(); fd.forEach((v, k) => { if (v) f.set(k, v); });
+    if (debut || fin) f.delete("mois");
+    location.hash = "#/liste" + (f.toString() ? "?" + f : "");
+  });
+  qa('#filtre [name="date_debut"], #filtre [name="date_fin"]').forEach((input) => input.addEventListener("change", () => { const erreur = q("#range-error"); if (erreur) erreur.hidden = true; }));
   const majSelection = () => {
     const coches = qa(".coche"), choisis = coches.filter((c) => c.checked).length, total = coches.length;
     const compteur = q("#selection-count"), supprimer = q("#suppr"), tout = q("#tout");
@@ -79,11 +162,15 @@ export async function vueListe(p) {
   };
   const tout = q("#tout"); if (tout) tout.addEventListener("change", () => { qa(".coche").forEach((c) => (c.checked = tout.checked)); majSelection(); });
   qa(".coche").forEach((c) => c.addEventListener("change", majSelection));
+  const supprimerDocuments = async (ids) => {
+    if (!confirm(ids.length === 1 ? "Supprimer définitivement ce document ?" : "Supprimer définitivement " + ids.length + " document(s) ?")) return;
+    const r = await post("/documents/supprimer", { ids }); message(r.supprimes + " document(s) supprimé(s)."); await actions.rafraichir(); actions.route();
+  };
   const b = q("#suppr"); if (b) b.addEventListener("click", () => sur(async () => {
     const ids = qa(".coche").filter((c) => c.checked).map((c) => +c.value); if (!ids.length) return message("Cochez au moins un document.", "erreur");
-    if (!confirm("Supprimer définitivement " + ids.length + " document(s) ?")) return;
-    const r = await post("/documents/supprimer", { ids }); message(r.supprimes + " document(s) supprimé(s)."); await actions.rafraichir(); actions.route();
+    await supprimerDocuments(ids);
   }));
+  qa(".row-delete").forEach((b) => b.addEventListener("click", () => sur(async () => { await supprimerDocuments([+b.dataset.id]); })));
 }
 
 // ------------------------------------------------------------------ fiche d'un document

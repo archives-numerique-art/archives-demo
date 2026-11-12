@@ -44,6 +44,13 @@ Le navigateur n'affiche que ce que le backend renvoie. Les compteurs, l'arbre de
 - Documents scannés : répertoire de données du backend, historiquement `backend/donnees/fichiers/`. Vérifier la configuration courante avant toute opération sur les fichiers.
 - Ne jamais partager la clé de session ni les données clients.
 - Consulter la base via DBeaver, mais éviter toute modification manuelle : les règles d'accès sont appliquées par le backend. Pour explorer sans risque, travailler sur une copie de sauvegarde et fermer la connexion DBeaver avant de remplacer le fichier.
+- Les vues SQLite (dont `v_documents`) sont la couche de lecture réutilisable privilégiée par le backend pour les jointures, colonnes normalisées et calculs partagés entre les routes. Elles facilitent les filtres et les réponses destinées au frontend, mais ne remplacent ni les règles métier ni les contrôles d'accès.
+- Une vue expose des noms de colonnes explicites et stables, dont l'identifiant réel de chaque ligne (`id`), et retourne une ligne par entité sauf agrégation intentionnelle. Éviter `SELECT *`, les doublons issus des jointures et les colonnes sensibles inutiles.
+- Définir et faire évoluer les vues dans les migrations de `backend/base.py`, de façon idempotente et compatible avec les anciennes bases. `CREATE VIEW IF NOT EXISTS` ne met pas à jour une définition existante : toute évolution doit vérifier le type et les colonnes présentes, puis remplacer la vue de façon contrôlée. Ne jamais modifier la base active à la main pour faire persister une évolution du code.
+- Une vue SQLite n'est pas matérialisée et ne possède pas d'index propre. Pour les lenteurs, examiner la requête et son plan, puis envisager des index sur les tables sources ; ne pas créer de table de cache, de déclencheur ou de stockage redondant sans demande explicite.
+- Le frontend ne se connecte jamais directement à SQLite. Toutes les listes, fiches, recherches, filtres, indicateurs et exports passent par l'API. Celle-ci utilise des requêtes paramétrées et applique les droits et filtres de visibilité à chaque lecture, y compris les décomptes, agrégats, pagination et exports. Une vue ne doit jamais rendre visibles des données que l'utilisateur n'est pas autorisé à voir.
+- Garder les contrats d'API et les résultats métier stables lors d'une simple optimisation de vue. Si un filtre nécessaire n'existe pas dans l'API, le signaler plutôt que simuler un résultat complet côté navigateur ; tenir compte des limites de lignes et de pagination existantes.
+- Tester les migrations et requêtes sur une base temporaire : schéma ancien et courant, colonnes/identifiants renvoyés, absence de doublons, cohérence des totaux et filtres, résultats selon les droits. Ne jamais utiliser la base réelle pour les tests.
 
 ### Tables principales
 
@@ -159,6 +166,19 @@ Ne pas lancer les scripts depuis un fichier ZIP non extrait. Éviter les dossier
 
 ## Design de l'interface
 
+### Périmètre et méthode
+
+- Pour une demande explicitement limitée au frontend, ne modifier ni base, ni formules, ni règles métier, permissions, validations ou contrats API. Utiliser uniquement les données et actions réellement fournies ; présenter séparément tout besoin d'évolution backend.
+- Si l'utilisateur demande explicitement des vues, des calculs ou une évolution API, intervenir dans cette limite précise. Privilégier les vues SQL pour partager les lectures backend, sans exposer SQLite au navigateur ni contourner les permissions.
+- Lire les instructions du dépôt et examiner les écrans et composants réellement utilisés. Améliorer d'abord les styles et composants communs, puis adapter les modules. Conserver HTML, CSS et JavaScript natifs ; ne pas introduire de framework ou dépendance sans nécessité et accord.
+- Garder une identité IMF Archive professionnelle et reconnaissable : logo et palette existants, surfaces sobres, bordures fines, fond gris bleuté et cartes claires. Centraliser les couleurs et états dans les variables du thème. S'inspirer des références sans copier leur code, leur marque ou leurs ressources ; vérifier les licences avant tout emprunt.
+
+### Références de conception
+
+- Commencer par TailAdmin [Data Tables](https://demo.tailadmin.com/data-tables), [Products List](https://react-demo.tailadmin.com/products-list) et shadcn/ui [Combobox](https://ui.shadcn.com/docs/components/combobox).
+- Pour les formulaires et la navigation, consulter TailAdmin [Form Elements](https://demo.tailadmin.com/form-elements) et [Form Layout](https://react-demo.tailadmin.com/form-layout) ; pour les interactions, shadcn/ui [Data Table](https://ui.shadcn.com/docs/components/data-table), [Sidebar](https://ui.shadcn.com/docs/components/sidebar), [Sheet](https://ui.shadcn.com/docs/components/sheet), [Empty](https://ui.shadcn.com/docs/components/empty) et [Alert Dialog](https://ui.shadcn.com/docs/components/alert-dialog).
+- Pour les tableaux de bord, onglets et fiches, consulter TailAdmin [Dashboard](https://nextjs-demo.tailadmin.com/), [Tabs](https://react-demo.tailadmin.com/tabs) et [Profile](https://react-demo.tailadmin.com/profile). Odoo et [Line Awesome](https://icones8.fr/line-awesome) peuvent inspirer la grille d'applications et les pictogrammes. Si une référence est inaccessible, le signaler brièvement et poursuivre avec les autres.
+
 ### Identité et structure
 
 - Logo `frontend/assets/logo.png` : intact, sur fond blanc, en haut de chaque page, sur la page de connexion et dans le bandeau de département.
@@ -168,6 +188,25 @@ Ne pas lancer les scripts depuis un fichier ZIP non extrait. Éviter les dossier
 - Accueil : cartes de synthèse, guide repliable, documents partagés et résumé.
 - Cartes des documents avec niveaux colorés ; contrôles de suppression uniquement aux personnes autorisées.
 
+### Cohérence des tableaux, filtres et recherches
+
+- Tous les registres utilisent les mêmes conventions et, si cela simplifie le code existant, les mêmes composants partagés : titre clair, action principale, barre d'outils unique, en-têtes lisibles, séparateurs fins, compteur, filtres actifs effaçables et pagination selon les fonctions déjà disponibles.
+- La recherche en cours de saisie est distincte des critères appliqués. La recherche d'options dans un sélecteur reste distincte de la recherche dans le registre ; catégories, types, états et références métier utilisent des sélecteurs recherchables lorsque la pile existante le permet. Prévoir « Tous », « Non renseigné » si pertinent, option cochée, recherche insensible aux accents et état « Aucun résultat ».
+- Un changement de filtre ramène à la première page et conserve les autres critères conformément au contrat API. Afficher des puces de filtres actifs et une commande de réinitialisation. Ne pas présenter un filtre comme appliqué si l'API ne le prend pas en charge ; ne pas calculer côté client un total qui ignore des lignes absentes de la réponse ou sa limite de pagination.
+- Conserver tri, pagination, sélection multiple et préférences de colonnes, largeur et densité lorsqu'ils existent. Chaque action du menu `⋯` cible l'identifiant réel de sa ligne. Aligner les valeurs numériques à droite ; afficher dates seules comme dates, horodatages avec heure et statuts dans des pastilles textuelles accessibles.
+- Sur téléphone et tablette, faire revenir les commandes à la ligne et limiter le défilement horizontal au tableau. Utiliser les mêmes libellés, icônes et styles pour les actions récurrentes ; une action principale pleine, les actions secondaires discrètes. Placer un seul bouton « Réglages » près de l'action principale si des options de colonnes, exports ou références existent.
+- Regrouper Excel et CSV sous « Exporter » lorsqu'ils sont disponibles et nommer précisément le périmètre exporté : résultats filtrés ou sélection. Ne pas ajouter de faux exports ou d'options sans fonction correspondante.
+- Garder les données affichées pendant une actualisation si possible. Distinguer chargement initial, actualisation, absence de résultats et erreur explicite. Préserver recherche et filtres lors du passage Cartes/Tableau si ces vues existent.
+
+### Navigation, tableaux de bord et formulaires
+
+- Regrouper les rubriques par métier dans des sections repliables, mettre en évidence la route active et ajouter « Trouver un menu… » si la navigation est longue. Garder la commande d'ouverture/fermeture du menu dans l'en-tête (trois traits et croix), accessible même sur téléphone lorsque le menu est fermé.
+- Si l'application possède un espace d'applications, n'afficher que les accès disponibles pour le profil réel. Sur la connexion, privilégier un formulaire compact avec panneau d'identité sur grand écran et formulaire au premier plan sur téléphone.
+- Rendre les indicateurs cliquables uniquement lorsqu'ils ont un détail correspondant et autorisé. Le détail doit reprendre la même période et les mêmes critères que l'indicateur ; prévoir un retour au tableau de bord. Ne pas révéler par un compteur l'existence de documents confidentiels.
+- Réutiliser une fenêtre latérale commune si elle correspond aux parcours existants ; garder titre, fermeture et actions accessibles pendant le défilement. Sur téléphone, utiliser la largeur disponible. Les fiches 360 utilisent des sous-onglets compacts dont le contenu correspond toujours à l'enregistrement choisi ; au retour, restaurer filtres, page, sélection, défilement et focus lorsque possible.
+- Utiliser le même formulaire de création et de modification lorsque les parcours le permettent, préremplir les champs en modification, les grouper par sujet et passer d'une à deux colonnes selon la largeur. Afficher les erreurs près des champs, conserver la saisie après échec et garder Annuler/Enregistrer accessibles. Confirmer suppression et abandon de changements non enregistrés.
+- Pour la saisie multiple ou Excel, ne montrer que les étapes réellement prises en charge : modèle, import, collage, vérification/correction, erreurs et doublons. Ne pas inventer de validation métier ni changer les règles existantes.
+
 ### Comportements à préserver
 
 - Thème clair/sombre enregistré dans le navigateur ; bandeau du logo blanc dans les deux thèmes.
@@ -175,6 +214,7 @@ Ne pas lancer les scripts depuis un fichier ZIP non extrait. Éviter les dossier
 - À l'impression (`Ctrl+P`), masquer menus, boutons et formulaires.
 - Messages en français simple et vouvoiement ; états d'information jaunes et erreurs rouges.
 - Pas de framework frontend : HTML/CSS/JavaScript natifs. Échapper toute donnée affichée (`esc`).
+- Vérifier les écrans modifiés à différentes largeurs, dans les thèmes disponibles, au clavier et avec zoom ; contrôler états vide/erreur, visibilité des actions selon les droits, filtres, pagination et navigation vers la bonne fiche. Rapporter uniquement les tests réellement exécutés.
 
 ## Accompagnement utilisateur
 

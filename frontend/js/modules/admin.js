@@ -33,7 +33,7 @@ export async function vueDonnees() {
 
 // ------------------------------------------------------------------ mot de passe
 export async function vueMdp() {
-  contenu(`<h2>Changer mon mot de passe</h2>${S.moi.changer_mdp ? "<p class='msg'>Pour continuer, choisissez votre propre mot de passe.</p>" : ""}<form class="card" id="mp" style="max-width:420px"><p>Mot de passe actuel<br><input type="password" name="ancien" required autocomplete="current-password"></p>
+  contenu(`<h2>Changer mon mot de passe</h2>${S.moi.changer_mdp ? "<p class='msg'>Pour continuer, choisissez votre propre mot de passe.</p>" : ""}<form class="card" id="mp"><p>Mot de passe actuel<br><input type="password" name="ancien" required autocomplete="current-password"></p>
     <p>Nouveau mot de passe (8 caractères minimum)<br><input type="password" name="nouveau" required autocomplete="new-password"></p><p>Confirmer<br><input type="password" name="confirme" required autocomplete="new-password"></p><button>Changer le mot de passe</button></form>`);
   sur_envoi("#mp", async (f, fd) => { const r = await post("/mot-de-passe", { ancien: fd.get("ancien"), nouveau: fd.get("nouveau"), confirme: fd.get("confirme") }); S.moi = r.moi; message("Mot de passe changé."); await actions.rafraichir(); actions.aller("#/accueil"); });
 }

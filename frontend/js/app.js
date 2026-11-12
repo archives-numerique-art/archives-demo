@@ -30,8 +30,7 @@ function coque() {
   q("#racine").innerHTML = `<header class="top"><button type="button" class="menu-toggle" id="menu-toggle" aria-label="Ouvrir le menu" aria-controls="sidebar" aria-expanded="false"><span aria-hidden="true">☰</span></button>
     <a href="#/accueil"><img src="assets/logo.png" alt="Microfinance Bisou Bisou"></a><span class="app">Archives</span><span class="who">👤 ${esc(m.nom)}</span></header>
   <div class="wrap"><aside id="sidebar" aria-label="Navigation principale">
-    <form class="search menu-search" id="recherche-menu"><label class="sr-only" for="menu-q">Trouver un menu</label><input id="menu-q" name="q" type="search" placeholder="Trouver un menu…" autocomplete="off"></form>
-    <form class="search document-search" id="recherche"><label class="sr-only" for="document-q">Rechercher un document</label><input id="document-q" name="q" type="search" placeholder="Nom ou numéro de document"></form>
+    <form class="search menu-search" id="recherche-menu"><label class="sr-only" for="menu-q">Rechercher dans le menu</label><input id="menu-q" name="q" type="search" placeholder="Rechercher dans le menu…" autocomplete="off"></form>
     <p class="muted menu-empty" id="menu-empty" hidden>Aucun menu trouvé.</p>
     <details class="nav-group" open><summary>Mon espace</summary><nav class="menu nav-principal" aria-label="Mon espace">
       ${lien("/accueil", "🏠 Accueil")}${lien("/dossiers", "📁 Documents")}
@@ -39,11 +38,18 @@ function coque() {
     <details class="nav-group" open><summary>Suivi</summary><nav class="menu nav-principal" aria-label="Suivi">
       <a href="#/demandes">📨 Demandes <span class="pill" id="pastille" hidden></span></a>${!d.admin ? lien("/demandes/nouvelle", "✉ Nouvelle demande") : ""}
     </nav></details>
-    ${d.importer || d.gerer_comptes || d.admin || d.voir_journal ? `<details class="nav-group" open><summary>Gestion</summary><nav class="menu nav-principal" aria-label="Gestion">
-      ${d.importer ? lien("/import", "📥 Importer") + lien("/nouveau", "➕ Nouveau document") : ""}${d.gerer_comptes ? lien("/utilisateurs", "👥 Utilisateurs") : ""}${d.admin ? lien("/acces", "🔑 Accès") : ""}${d.voir_journal ? lien("/journal", "📜 Journal") : ""}${d.admin ? lien("/sauvegarde", "💾 Sauvegarde") + lien("/donnees", "🗄 Mes données") : ""}
-    </nav></details>` : ""}
-    <h5>Classement des documents</h5><div class="tree" id="arbre"></div><h5>Rubriques</h5><div class="tree" id="rubriques"></div>
-    <details class="nav-group nav-options" open><summary>Options</summary><nav class="menu">
+    ${d.importer || d.gerer_comptes || d.admin || d.voir_journal ? `<details class="nav-group"><summary>Gestion</summary>
+      ${d.importer ? `<details class="nav-subgroup"><summary>Archives</summary><nav class="menu nav-principal" aria-label="Gestion des archives">${lien("/import", "📥 Importer")}${lien("/nouveau", "➕ Nouveau document")}</nav></details>` : ""}
+      ${d.gerer_comptes || d.admin ? `<details class="nav-subgroup"><summary>Comptes et accès</summary><nav class="menu nav-principal" aria-label="Comptes et accès">
+        ${d.gerer_comptes ? lien("/utilisateurs", "👥 Utilisateurs") : ""}${d.admin ? lien("/acces", "🔑 Accès") : ""}
+      </nav></details>` : ""}
+      ${d.voir_journal || d.admin ? `<details class="nav-subgroup"><summary>Journal et données</summary><nav class="menu nav-principal" aria-label="Journal et données">
+        ${d.voir_journal ? lien("/journal", "📜 Journal") : ""}${d.admin ? lien("/sauvegarde", "💾 Sauvegarde") + lien("/donnees", "🗄 Mes données") : ""}
+      </nav></details>` : ""}
+    </details>` : ""}
+    <details class="nav-group nav-tree"><summary>Classement</summary><div class="tree" id="arbre"></div></details>
+    <details class="nav-group nav-references"><summary>Rubriques</summary><div class="tree" id="rubriques"></div></details>
+    <details class="nav-group nav-options"><summary>Options</summary><nav class="menu">
       <a href="#" id="theme"></a>${lien("/mot-de-passe", "🔒 Mot de passe")}<a href="#" id="quitter">⏻ Quitter</a>
     </nav></details>
     <p class="n version">Archives IMF - version ${esc(S.meta.version)}</p></aside><main><div id="messages"></div><div id="contenu"></div></main></div>`;
@@ -81,10 +87,13 @@ function coque() {
       g.hidden = !!recherche && dansGroupe === 0;
       if (!recherche || dansGroupe) visibles++;
     });
+    qa(".nav-subgroup").forEach((g) => {
+      g.open = recherche ? qa(".menu a[href^='#/']", g).some((a) => !a.hidden) : false;
+    });
     q("#menu-empty").hidden = !recherche || visibles > 0;
     if (recherche) qa(".nav-group:not(.nav-options)").forEach((g) => { if (!g.hidden) g.open = true; });
+    else majLienActif();
   });
-  q("#recherche").addEventListener("submit", (e) => { e.preventDefault(); location.hash = "#/liste?q=" + enc(new FormData(e.target).get("q")); });
   q("#theme").addEventListener("click", (e) => { e.preventDefault(); changerTheme(); }); majTheme();
   q("#quitter").addEventListener("click", async (e) => { e.preventDefault(); try { await post("/deconnexion"); } catch (x) {} S.moi = null; S.csrf = ""; location.hash = ""; demarrer(); });
   majMenuToggle();
@@ -93,8 +102,8 @@ function coque() {
 function rendreNav() {
   const n = S.nav, a = q("#arbre"), r = q("#rubriques"), p = q("#pastille"); if (!a) return;
   p.hidden = !S.moi.nb_attente; p.textContent = S.moi.nb_attente;
-  a.innerHTML = n.arbre.map((y, i) => `<details ${i === 0 ? "open" : ""}><summary>📁 ${esc(y.annee)} <span class="n">(${y.total})</span></summary>${y.mois.map((m, j) =>
-    `<details ${i === 0 && j === 0 ? "open" : ""}><summary>📂 ${esc(m.libelle)} <span class="n">(${m.total})</span></summary>${m.departements.map((d) =>
+  a.innerHTML = n.arbre.map((y) => `<details><summary>📁 ${esc(y.annee)} <span class="n">(${y.total})</span></summary>${y.mois.map((m) =>
+    `<details><summary>📂 ${esc(m.libelle)} <span class="n">(${m.total})</span></summary>${m.departements.map((d) =>
       `<a href="#/liste?mois=${enc(m.mois)}&dept=${enc(d.valeur)}">📄 ${esc(d.nom)} <span class="n">(${d.total})</span></a>`).join("")}</details>`).join("")}</details>`).join("") || `<p class="muted" style="padding:0 14px">Aucun document pour le moment.</p>`;
   r.innerHTML = `<details><summary>🏢 Départements <span class="n">(${n.departements.length})</span></summary>${n.departements.map((d) => `<a href="#/liste?dept=${enc(d.valeur)}">📄 ${esc(d.nom)} <span class="n">(${d.total})</span></a>`).join("")}</details>
     <details><summary>🛡 Niveaux d'accès</summary>${n.niveaux.map((x) => `<a href="#/liste?niveau=${enc(x.niveau)}">📄 ${esc(x.niveau)} <span class="n">(${x.total})</span></a>`).join("")}</details>
@@ -109,6 +118,12 @@ function majLienActif() {
   qa(".nav-principal a").forEach((a) => {
     const actif = a.getAttribute("href") === "#" + cible;
     if (actif) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    if (actif) {
+      const groupe = a.closest("details.nav-group");
+      if (groupe) groupe.open = true;
+      const sousGroupe = a.closest("details.nav-subgroup");
+      if (sousGroupe) sousGroupe.open = true;
+    }
   });
 }
 

@@ -24,6 +24,25 @@ MIGRATIONS = (  # pour compléter les anciennes bases (versions 4 à 9)
     "alter table demandes add column portee text default 'doc'", "alter table demandes add column valeur text")
 
 
+def assurer_vue_documents(c):
+    vue = c.execute("select type from sqlite_master where name='v_documents'").fetchone()
+    if vue and vue[0] != "view":
+        raise RuntimeError("Impossible de créer v_documents : un objet de base de données porte déjà ce nom.")
+    if vue:
+        colonnes = {r[1] for r in c.execute("pragma table_info(v_documents)")}
+        requises = {"id", "num", "titre", "service", "departement", "type", "date", "niveau", "etat", "cree"}
+        if not requises.issubset(colonnes):
+            c.execute("drop view v_documents")
+    c.execute("""
+        create view if not exists v_documents as
+        select id, num, titre, service, service as departement, type, date, niveau,
+               emplacement, etat,
+               case when fichier is null or fichier='' then 'non' else 'oui' end as fichier_joint,
+               cree
+        from docs
+    """)
+
+
 def init_db():
     if not os.path.isfile(C.DB):
         raise FileNotFoundError("Base SQLite introuvable : %s" % C.DB)
@@ -39,6 +58,7 @@ def init_db():
             try: c.execute(q)
             except sqlite3.OperationalError as e:
                 if "duplicate column name" not in str(e).lower(): raise
+        assurer_vue_documents(c)
         c.commit()
     except Exception:
         c.rollback()

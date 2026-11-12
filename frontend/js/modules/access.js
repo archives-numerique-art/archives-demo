@@ -1,4 +1,4 @@
-import { qa, esc, fr, options, api, post, del, message, sur, contenu, sur_envoi } from "../core.js";
+import { q, qa, esc, fr, options, api, post, del, message, sur, contenu, sur_envoi } from "../core.js";
 
 const actions = { rafraichir: () => {}, route: () => {}, aller: () => {} };
 export function configurerAcces(context) { Object.assign(actions, context); }
@@ -16,10 +16,47 @@ export async function vueDemandes() {
 
 export async function vueNouvelleDemande() {
   const dep = await api("/departements");
-  contenu(`<h2>Demander l'accès à des documents confidentiels</h2><p class="muted">Les documents Publics et Internes sont ouverts à tous. Pour les documents confidentiels, expliquez pourquoi vous en avez besoin : l'archiviste ou le responsable du département répond.</p>
-    <form class="card" id="dm"><p><label><input type="radio" name="portee" value="dept" checked> Tous les documents d'un département confidentiel</label><br>${dep.confidentiels.length ? `<select name="v_dept">${options(dep.confidentiels)}</select>` : "<span class='muted'>Aucun département confidentiel n'est défini.</span>"}</p>
-      <p><label><input type="radio" name="portee" value="dossier"> Un dossier précis qui ne figure pas dans la liste</label><br><input name="v_texte" size="40" placeholder="Nom du client, numéro, mois..."></p>
-      <p>Motif <br><textarea name="motif" rows="3" cols="50" required></textarea></p><p>Durée souhaitée <select name="jours">${[1, 3, 7, 14, 30, 60, 90].map((j) => `<option ${j === 7 ? "selected" : ""}>${j}</option>`).join("")}</select> jours</p><button>Envoyer la demande</button></form>`);
+  const departementsDisponibles = dep.confidentiels.length > 0;
+  contenu(`<header class="page-heading"><div><p class="eyebrow">Accès et confidentialité</p><h2>Demander un accès</h2><p class="muted">Précisez les documents concernés et la durée souhaitée. Votre demande sera examinée par une personne autorisée.</p></div></header>
+    <div class="request-notice"><span class="request-notice-icon" aria-hidden="true">i</span><p>Les documents Publics et Internes restent accessibles sans demande. Utilisez ce formulaire uniquement pour un document ou un département confidentiel.</p></div>
+    <form class="card workflow-form request-form" id="dm">
+      <section class="form-section"><h3>Quels documents souhaitez-vous consulter ?</h3><p class="section-hint">Choisissez une seule portée pour votre demande.</p>
+        <div class="request-options">
+          <label class="request-option${departementsDisponibles ? " selected" : ""}">
+            <input type="radio" name="portee" value="dept" ${departementsDisponibles ? "checked" : "disabled"}>
+            <span class="request-option-copy"><strong>Un département confidentiel</strong><small>${departementsDisponibles ? "Demander l’accès aux documents de ce service." : "Aucun département confidentiel n’est configuré."}</small></span>
+            <span class="request-option-mark" aria-hidden="true">✓</span>
+          </label>
+          <label class="request-option${departementsDisponibles ? "" : " selected"}">
+            <input type="radio" name="portee" value="dossier" ${departementsDisponibles ? "" : "checked"}>
+            <span class="request-option-copy"><strong>Un dossier précis</strong><small>Demander un document qui n’apparaît pas dans la liste.</small></span>
+            <span class="request-option-mark" aria-hidden="true">✓</span>
+          </label>
+        </div>
+        <div class="form-grid request-targets">
+          <label class="field request-target" id="request-department"><span>Département confidentiel</span>${departementsDisponibles ? `<select name="v_dept" required>${options(dep.confidentiels)}</select>` : `<span class="request-empty">Aucun département confidentiel n’est configuré.</span>`}</label>
+          <label class="field request-target" id="request-file"><span>Référence du dossier</span><input name="v_texte" placeholder="Nom du client, numéro ou période" required></label>
+        </div>
+      </section>
+      <section class="form-section"><h3>Motif et durée</h3><p class="section-hint">Ces précisions aident la personne responsable à examiner votre demande.</p>
+        <div class="form-grid">
+          <label class="field field-full">Motif de la demande<textarea name="motif" rows="4" placeholder="Expliquez brièvement pourquoi vous avez besoin de cet accès." required></textarea><span class="field-hint">N’indiquez que les informations nécessaires au traitement de la demande.</span></label>
+          <label class="field">Durée souhaitée<select name="jours">${[1, 3, 7, 14, 30, 60, 90].map((j) => `<option value="${j}" ${j === 7 ? "selected" : ""}>${j} jour${j > 1 ? "s" : ""}</option>`).join("")}</select></label>
+        </div>
+      </section>
+      <div class="form-actions"><a class="button button-secondary" href="#/demandes">Annuler</a><button type="submit">Envoyer la demande</button></div>
+    </form>`);
+  const basculePortee = () => {
+    const portee = q('input[name="portee"]:checked').value, parDepartement = portee === "dept";
+    q("#request-department").hidden = !parDepartement;
+    q("#request-file").hidden = parDepartement;
+    const select = q('[name="v_dept"]'), dossier = q('[name="v_texte"]');
+    if (select) select.disabled = !parDepartement;
+    dossier.disabled = parDepartement;
+    qa(".request-option").forEach((option) => option.classList.toggle("selected", option.querySelector('input[name="portee"]').checked));
+  };
+  qa('input[name="portee"]').forEach((radio) => radio.addEventListener("change", basculePortee));
+  basculePortee();
   sur_envoi("#dm", async (f, fd) => {
     const p = fd.get("portee"); await post("/demandes", { portee: p, valeur: p === "dept" ? fd.get("v_dept") : fd.get("v_texte"), motif: fd.get("motif"), jours: +fd.get("jours") });
     message("Demande envoyée. Elle sera traitée par l'archiviste ou par le responsable du département concerné."); await actions.rafraichir(); actions.aller("#/demandes");
